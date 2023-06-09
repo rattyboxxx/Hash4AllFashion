@@ -1,3 +1,6 @@
+logs
 TODO.txt
 *.jpg
 *.png
+*.net
+*.pyc

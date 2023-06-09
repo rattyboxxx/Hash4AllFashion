@@ -4,6 +4,13 @@ from unittest import result
 import warnings
 from datetime import datetime
 
+import utils.config as cfg
+
+NO_WEIGHTED_HASH = 0
+WEIGHTED_HASH_U = 1
+WEIGHTED_HASH_I = 2
+WEIGHTED_HASH_BOTH = 3
+
 ##TODO: Modify this
 _VAR_LENGTH_DATA = ["tuples_519", "tuples_32"]
 
@@ -121,6 +128,9 @@ class DataParam(_Param):
         num_workers=8,  # number of workers for dataloader
         shuffle=None,
         fsl=None,
+        cate_selection=None,
+        num_pairwise=None,
+        using_max_num_pairwise=True,
     )
     ##TODO: Modify this
     infer = [
@@ -129,7 +139,8 @@ class DataParam(_Param):
         "posi_fn",
         "nega_fn",
         "image_list_fn",
-        "semantic_fn"
+        "semantic_fn",
+        "data_csv",
     ]
 
     def setup(self,):
@@ -152,19 +163,19 @@ class DataParam(_Param):
 
     @property
     def image_dir(self):
-        if self.saliency_image:
-            folder = "saliency"
-        else:
-            folder = "291x291"
-        return os.path.join(self.image_root, "images", folder)
+        return os.path.join(self.image_root, "images")
 
     @property
     def lmdb_dir(self):
-        return os.path.join(self.image_root, "images/lmdb")
+        return os.path.join(self.image_root, "images_lmdb")
 
     @property
     def data_dir(self):
         return os.path.join(self.data_root, self.data_set)
+
+    @property
+    def data_csv(self):
+        return os.path.join(self.data_root, self.data_set, f"{self.phase}.csv")
 
     @property
     def semantic_fn(self):
@@ -172,6 +183,8 @@ class DataParam(_Param):
 
     @property
     def image_list_fn(self):
+        ##TODO: Delete this
+        return None
         return [
             os.path.join(self.data_dir, self.list_fmt.format(p)) for p in cfg.CateName
         ]
@@ -226,6 +239,7 @@ class NetParam(_Param):
         hash_types=0,
         margin=None,
         debug=False,
+        shared_weight_network=False,
     )
 
     def setup(self):
@@ -237,6 +251,116 @@ class NetParam(_Param):
                         "accessory", "scarf", "hat", "sunglass", "jewellery"]
         self.id2cat = {cat_id: cat_name for cat_id, cat_name in zip(self.cate_map, self.cate_name)}
         self.cat2id = {cat_name: cat_id for cat_id, cat_name in zip(self.cate_map, self.cate_name)}
+
+
+class OptimParam(_Param):
+    default = dict(
+        name="SGD",
+        lr=1e-3,
+        weight_decay=0,
+        grad_param=None,
+        lr_scheduler="StepLR",
+        scheduler_param=None,
+    )
+    infer = ["groups"]
+
+    def setup(self):
+        self.groups = self._param_groups(self.lr, self.weight_decay)
+        if self.name == "SGD":
+            self.grad_param = self._optim_SGD(self.grad_param)
+        elif self.name in ["Adam", "Adamax"]:
+            self.grad_param = self._optim_Adam(self.grad_param)
+        else:
+            raise KeyError
+        scheduler_param = self.scheduler_param
+        if self.lr_scheduler == "StepLR":
+            self.lr_param = self._policy_StepLR(scheduler_param)
+        elif self.lr_scheduler == "ReduceLROnPlateau":
+            self.lr_param = self._policy_ReduceLROnPlateau(scheduler_param)
+        else:
+            raise KeyError
+
+    def _param_groups(self, lr, weight_decay):
+        """Parse setting for multiple group of parameters."""
+        # learning rates and weight decay
+        if not isinstance(lr, list):
+            lr = [lr]
+        if not isinstance(weight_decay, list):
+            weight_decay = [weight_decay]
+        num_lrs, lrs = len(lr), lr
+        num_wds, wds = len(weight_decay), weight_decay
+        if num_lrs == 1 and num_wds > 1:
+            lrs = lrs * num_wds
+        elif num_lrs > 1 and num_wds == 1:
+            wds = wds * num_lrs
+        elif num_lrs > 1 and num_wds > 1:
+            assert num_lrs == num_wds, (
+                "Number of learning rate doesn't",
+                "the number of weight decay.",
+            )
+        groups = [dict(lr=lr, weight_decay=wd) for lr, wd in zip(lrs, wds)]
+        return groups
+
+    def _optim_SGD(self, param=None):
+        if param is None:
+            param = dict()
+        return dict(momentum=param.get("momentum", 0.9))
+
+    def _optim_Adam(self, param=None):
+        if param is None:
+            param = dict()
+        return dict(betas=param.get("betas", (0.9, 0.999)), eps=param.get("eps", 1e-8))
+
+    def _policy_StepLR(self, param=None):
+        if param is None:
+            param = dict()
+        lr_param = dict(
+            step_size=param.get("step_size", 30), gamma=param.get("gamma", 0.1)
+        )
+        return lr_param
+
+    def _policy_ReduceLROnPlateau(self, param=None):
+        if param is None:
+            param = dict()
+        lr_param = dict(
+            mode="max",
+            cooldown=param.get("cooldown", 10),
+            factor=param.get("factor", 0.1),
+            patience=param.get("patience", 10),
+            threshold=param.get("threshold", 0.0001),
+            verbose=True,
+        )
+        return lr_param
+        
+
+class SolverParam(_Param):
+    """Parameters class for solver."""
+
+    default = dict(
+        name=None,
+        gpus=[0],
+        gamma=0.1,
+        visdom_env="main",
+        checkpoints="./checkpoints",
+        visdom_title="FHN",
+        tracking_method="tensorboard",
+        tracking_log_dir="./logs",
+        display=10,
+        test_display=10,
+        balance_loss=False,
+        increase_hard=False,
+        epochs=100,
+        optim_param=None,
+    )
+
+    def setup(self):
+        optim_param = self.optim_param or dict()
+        self.optim_param = OptimParam(**optim_param)
+
+    def add_timestamp(self, timestamp=None):
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%m%d%H%M")
+        self.visdom_title = self.visdom_title + "." + timestamp
 
 
 class FashionTrainParam(_Param):
@@ -279,9 +403,9 @@ class FashionTrainParam(_Param):
 
         if self.net_param:
             self.net_param = NetParam(**self.net_param)
-        # if self.solver_param:
-        #     self.solver_param = SolverParam(**self.solver_param)
-        #     self.gpus = self.solver_param.gpus
+        if self.solver_param:
+            self.solver_param = SolverParam(**self.solver_param)
+            self.gpus = self.solver_param.gpus
 
     def add_timestamp(self, timestamp=None):
         """Add timestamp to log file and solver."""
@@ -291,4 +415,4 @@ class FashionTrainParam(_Param):
             self.log_file = "{name}.{time}.log".format(
                 name=self.log_file, time=timestamp
             )
-        # self.solver_param.add_timestamp(timestamp)
+        self.solver_param.add_timestamp(timestamp)

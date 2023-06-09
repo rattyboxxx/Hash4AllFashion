@@ -1,0 +1,1 @@
+from .fashionsolver import FashionNetSolver
