@@ -87,10 +87,9 @@ def get_device(gpus=None):
 
 def to_device(data, device):
     """Move data to device."""
-    from collections import Sequence
 
     error_msg = "data must contain tensors or lists; found {}"
-    if isinstance(data, Sequence):
+    if isinstance(data, (list, tuple)):
         return tuple(to_device(v, device) for v in data)
     elif isinstance(data, torch.Tensor):
         return data.to(device)

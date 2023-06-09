@@ -155,7 +155,7 @@ class FashionDataset(Dataset):
         self.posi_df_ori = self.df[self.df.compatible == 1].reset_index(drop=True).drop("compatible", axis=1)
         self.nega_df_ori = self.df[self.df.compatible == 0].reset_index(drop=True).drop("compatible", axis=1)
         
-        assert len(self.posi_df) + len(self.nega_df) == len(self.df)
+        assert len(self.posi_df_ori) + len(self.nega_df_ori) == len(self.df)
 
         self.posi_df = self.posi_df_ori.copy()
 
