@@ -278,6 +278,18 @@ class FashionNet(nn.Module):
         accuracy.update(accuracy=acc, binary_accuracy=binary_acc)
         return loss, accuracy
 
+    ##TODO: Modify for not `shared weight` option, add user for very later
+    def extract_features(self, inputs):
+        feats = self.features(inputs)
+        lcis_v = self.encoder_v(feats)
+        ##TODO: Extract semantic if enable
+        lcis_s = None
+
+        bcis_v = self.sign(lcis_v)
+        bcis_s = None
+
+        return lcis_v, lcis_s, bcis_v, bcis_s
+
     def num_groups(self):
         """Size of sub-modules."""
         return len(self._modules)

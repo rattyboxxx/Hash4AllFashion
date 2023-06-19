@@ -416,3 +416,38 @@ class FashionTrainParam(_Param):
                 name=self.log_file, time=timestamp
             )
         self.solver_param.add_timestamp(timestamp)
+
+
+class FashionExtractParam(_Param):
+    """_Param for Hash for All Fashion Feature Extraction."""
+
+    default = dict(
+        data_param=None,
+        train_data_param=None,
+        test_data_param=None,
+        net_param=None,
+        load_trained=None,  # load pre-trained model
+        log_file=None,  # log file  ##TODO: maybe we dont need this
+        log_level=None,  # log level
+        feature_folder=None,  # folder to saving features
+        gpus=None,  # gpus
+    )
+
+    def setup(self):
+        # If set specific configuration for training
+        if not (self.train_data_param is None and self.test_data_param is None):
+            param = self.data_param or dict()
+            train_param = self.train_data_param or dict()
+            test_param = self.test_data_param or dict()
+            train_param.update(param)
+            test_param.update(param)
+            self.train_data_param = DataParam(**train_param)
+            self.test_data_param = DataParam(**test_param)
+            self.data_param = None
+
+        if self.data_param:
+            param = self.data_param
+            self.data_param = DataParam(**param)
+
+        if self.net_param:
+            self.net_param = NetParam(**self.net_param)

@@ -1,0 +1,41 @@
+data_param:
+  batch_size: 2 # batch size
+  data_root: /home/ubuntu/Documents/working/Hangers.AI/data/polyvore_Hash4AllFashion # data root
+  image_root: /home/ubuntu/Documents/working/Hangers.AI/data/polyvore_Hash4AllFashion # image root
+  data_set: disjoint # data set
+  nega_mode: ShuffleDatabase # negative outfits strategy
+  num_workers: 2 # number of workers
+  use_lmdb: True # use lmbd data
+  use_semantic: false # use sentance data
+  use_visual: true # use visual data
+  cate_selection: ["top", "bottom", "bag", "outerwear", "shoe"]
+  num_pairwise: [2, 3, 4]
+  using_max_num_pairwise: true
+
+train_data_param:
+  shuffle: false # do shuffle
+  data_mode: PairWise # output data format
+  phase: train # split
+
+test_data_param:
+  shuffle: false # do not shuffle
+  data_mode: PairWise # output data format
+  phase: val # split
+
+net_param:
+  name: FashionNet
+  num_users: 1 # number of users ##TODO: Later
+  dim: 128 # dimension of binary codes
+  backbone: alexnet # backbone for feature extractor
+  hash_types: 2 # type of hash codes, current only use for item
+  scale_tanh: true # use scale tahn
+  use_semantic: false # use semantic features
+  use_visual: true # user visdual features
+  margin: 0.1 # margin for vse-loss, if exists
+  shared_weight_network: true
+
+gpus: [0]
+feature_folder: features
+log_file: logs/train/fashion_hash_net_t3_allFashion_noSemantic.log
+log_level: DEBUG
+load_trained: /home/ubuntu/Documents/working/Hangers.AI/Hash4AllFashion/checkpoints/fashion_hash_net_t3_allFashion_noSemantic_best.net

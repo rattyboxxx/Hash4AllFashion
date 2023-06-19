@@ -117,6 +117,68 @@ class Datum(object):
         return tpl
 
 
+##TODO: Merge with FashionDataset
+class FashionExtractionDataset(Dataset):
+    def __init__(self, param, transforms=None, cate_selection="all", logger=None):
+        self.param = param
+        self.logger = logger
+
+        self.df = pd.read_csv(self.param.data_csv)
+
+        # After processing
+        if cate_selection == "all":
+            cate_selection = list(self.df.columns)
+        else:
+            cate_selection = cate_selection + ["compatible",]
+
+        ##TODO: Simplify this later
+        self.cate_idxs = [cfg.CateIdx[col] for col in cate_selection[:-1]]
+        self.cate_idxs_to_tensor_idxs = {cate_idx: tensor_idx for cate_idx, tensor_idx in zip(self.cate_idxs, range(len(self.cate_idxs)))}
+        self.tensor_idxs_to_cate_idxs = {v: k for k, v in self.cate_idxs_to_tensor_idxs.items()}
+        
+        self.df = self.get_new_data_with_new_cate_selection(self.df, cate_selection)
+
+        self.df = self.df.drop("compatible", axis=1)
+
+        if param.use_semantic:
+            ##TODO: Code this later
+            semantic = load_semantic_data(param.semantic_fn)
+        else:
+            semantic = None
+
+        ##TODO: Careful with lmdb
+        lmdb_env = open_lmdb(param.lmdb_dir) if param.use_lmdb else None
+        self.datum = Datum(
+            use_semantic=param.use_semantic,
+            semantic=semantic,
+            use_visual=param.use_visual,
+            image_dir=param.image_dir,
+            lmdb_env=lmdb_env,
+            transforms=transforms
+        )
+
+    def get_new_data_with_new_cate_selection(self, df, cate_selection):
+        df = df.copy()
+        df = df[cate_selection]
+        df_count = (df.to_numpy()[..., :-1] != -1).astype(int).sum(axis=-1)
+        return df[df_count > 1]
+
+    def get_tuple(self, idx):
+        raw_tuple = self.df.iloc[idx]
+        outfit_tuple = raw_tuple[raw_tuple != -1]
+        outfit_idxs = [cfg.CateIdx[col] for col in outfit_tuple.index.to_list()]
+        return outfit_idxs, outfit_tuple.values.tolist()
+
+    def __getitem__(self, index):
+        """Get one tuple of examples by index."""
+        idxs, tpl = self.get_tuple(index)
+        return idxs, tpl, self.datum.get(tpl)
+
+    def __len__(self):
+        """Return the size of dataset."""
+        return len(self.df)
+
+
 class FashionDataset(Dataset):
     def __init__(self, param, transforms=None, cate_selection="all", logger=None):
         self.param = param

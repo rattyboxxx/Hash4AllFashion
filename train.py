@@ -1,18 +1,13 @@
 """Script for training."""
 import argparse
-import logging
 import os
-import pickle
-import shutil
-import textwrap
 import logging
+import warnings
 logging.basicConfig(level=logging.INFO)
+warnings.filterwarnings("ignore")
 
-import numpy as np
 import torch
-import tqdm
 import yaml
-from torch.nn.parallel import data_parallel
 
 import utils
 from utils.param import FashionTrainParam
